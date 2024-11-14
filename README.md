@@ -6,12 +6,6 @@ This project is a novel controller system designed for the **High Throughput Gen
 
 The system is compatible with **96-well commercial plates**, making it versatile and suitable for high-throughput laboratory workflows.
 
-## Features
-
-- **User-Friendly GUI**: The Matlab-based GUI provides an intuitive interface for controlling the HTGR system.
-- **Arduino-Controlled Hardware**: The Arduino MCU manages hardware functions, allowing precise control of the stepper motor, linear actuator, and load cell sensors.
-- **High Compatibility**: Designed to work with standard 96-well plates for seamless integration into existing lab protocols.
-
 ## System Components
 
 - **Matlab App**: The GUI for configuring, controlling, and monitoring the HTGR system.
