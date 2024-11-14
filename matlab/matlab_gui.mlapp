@@ -1,0 +1,1599 @@
+classdef HTGR_top_moving_v4_4 < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                        matlab.ui.Figure
+        MainButtonPannel_2              matlab.ui.container.Panel
+        InitializingParameterButton     matlab.ui.control.Button
+        SampleLoadingButton             matlab.ui.control.Button
+        HomePositionButton              matlab.ui.control.Button
+        MainButtonPannel                matlab.ui.container.Panel
+        SQUASHINGButton                 matlab.ui.control.Button
+        STOPButton                      matlab.ui.control.Button
+        RELEASEButton                   matlab.ui.control.Button
+        PNNL_LOGO                       matlab.ui.control.Image
+        HighThroughputGenomeReleaserLabel  matlab.ui.control.Label
+        TabGroup                        matlab.ui.container.TabGroup
+        MainTab                         matlab.ui.container.Tab
+        SerialPortConnectionPanel       matlab.ui.container.Panel
+        SerialPortDropDown              matlab.ui.control.DropDown
+        PortDropDownLabel               matlab.ui.control.Label
+        SerialDisconnectionButton       matlab.ui.control.Button
+        SerialConnectionButton          matlab.ui.control.Button
+        SerialCheckLamp                 matlab.ui.control.Lamp
+        SerialAvailableRefreshButton    matlab.ui.control.Button
+        MainTabContainer                matlab.ui.container.Panel
+        Instruction                     matlab.ui.control.Label
+        Instruction1                    matlab.ui.control.Label
+        Instruction2                    matlab.ui.control.Label
+        Instruction3                    matlab.ui.control.Label
+        Instruction4                    matlab.ui.control.Label
+        Instruction5                    matlab.ui.control.Label
+        HTGR_IMAGE                      matlab.ui.control.Image
+        TestModeTab                     matlab.ui.container.Tab
+        TestModeTabContainer            matlab.ui.container.Panel
+        SquashingMotionSettingLabel     matlab.ui.control.Label
+        ParameterSettingLabel           matlab.ui.control.Label
+        SquashingMotionContainer        matlab.ui.container.Panel
+        BasicButton                     matlab.ui.control.Button
+        RubbingButton                   matlab.ui.control.Button
+        StampingButton                  matlab.ui.control.Button
+        ResetButton                     matlab.ui.control.Button
+        SquashingMotionListBox          matlab.ui.control.ListBox
+        GraphPanel                      matlab.ui.container.Panel
+        ForceGraph                      matlab.ui.control.UIAxes
+        ForceLabel                      matlab.ui.control.Label
+        Testmode_VerticalForceInput     matlab.ui.control.NumericEditField
+        kgfLabel                        matlab.ui.control.Label
+        RubbingiterationLabel           matlab.ui.control.Label
+        Testmode_RubbingIterationInput  matlab.ui.control.NumericEditField
+        IterLabel                       matlab.ui.control.Label
+        RubbingdistanceLabel            matlab.ui.control.Label
+        Testmode_RubbingDistanceInput   matlab.ui.control.NumericEditField
+        mmLabel                         matlab.ui.control.Label
+        StampingdistanceLabel           matlab.ui.control.Label
+        Testmode_StampingDistanceInput  matlab.ui.control.NumericEditField
+        mmLabel_2                       matlab.ui.control.Label
+        RepeatcyclesLabel               matlab.ui.control.Label
+        Testmode_RepeatCyclesInput      matlab.ui.control.NumericEditField
+        cyclesLabel                     matlab.ui.control.Label
+        ManualmodeTab                   matlab.ui.container.Tab
+        ManualOperationPanel            matlab.ui.container.Panel
+        Force_measured                  matlab.ui.control.Label
+        Force_measured_display          matlab.ui.control.NumericEditField
+        UnitMovementCheckLabel          matlab.ui.control.Label
+        VerticalEditField_2Label        matlab.ui.control.Label
+        Manualmode_vertical_TD          matlab.ui.control.NumericEditField
+        Max_up                          matlab.ui.control.Button
+        Up                              matlab.ui.control.Button
+        Down                            matlab.ui.control.Button
+        HorizontalEditField_2Label      matlab.ui.control.Label
+        Manualmode_horizontal_TD        matlab.ui.control.NumericEditField
+        Max_left                        matlab.ui.control.Button
+        Left                            matlab.ui.control.Button
+        Right                           matlab.ui.control.Button
+        Max_right                       matlab.ui.control.Button
+        Align_from_left                 matlab.ui.control.Button
+        Align_from_right                matlab.ui.control.Button
+        StampingLabel                   matlab.ui.control.Label
+        GapmmLabel                      matlab.ui.control.Label
+        Manualmode_stamping_gap         matlab.ui.control.NumericEditField
+        Stamping_Check                  matlab.ui.control.Button
+        RubbingLabel                    matlab.ui.control.Label
+        TravelDistancemmLabel           matlab.ui.control.Label
+        Manualmode_rubbing_TD           matlab.ui.control.NumericEditField
+        Rubbing_Check                   matlab.ui.control.Button
+        Rubbing_Check_1min              matlab.ui.control.Button
+        Rubbing_Check_2min              matlab.ui.control.Button
+    end
+
+    properties (Access = private)
+        arduino; % Define the arduino property
+        isConnected = false;
+
+        CallingApp % Description
+        init_Z
+        init_X
+        % Rubbing: 7, Stamping: 8
+        basic_list = {'Rubbing', 'Stamping', 'Rubbing', 'Stamping'};
+        program_motion_list;
+        program_motion_code;
+
+        Initial_Force = 15;
+        Initial_Rubbing_iteration = 60;
+        Initial_Rubbing_distance = 1;
+        Initial_Stamping_distance = 1;
+        Initial_Repeat_cycles = 1;
+        Initial_squashing_motion = {'Rubbing', 'Stamping'};
+        %Initial_travel_vertical = 2;
+        %Initial_travel_horizontal = 5;
+
+        Playing_Force = 12000;
+        Playing_Rubbing_iteration = 60;
+        Playing_Rubbing_distance = 1;
+        Playing_Stamping_distance = 1;
+        Playing_Repeat_cycles = 1;
+
+        travel_vertical;
+        travel_horizontal;
+        stamp_gap;
+        travel_distance;
+        baudRate = 9600;
+        availablePorts = serialportlist;
+
+        code;
+        case_num;
+        param1;
+        param2;
+        param3;
+        param4;
+        param5;
+        param6;
+
+        LoadCellData = double.empty;    % Array to store load cell data
+        TimeStamps = datetime.empty;    % Array to store time stamps
+        MaxDataPoints = 1000; % Maximum number of data points to display at a time
+
+        isCollectingData = false % Flag to start/stop data collection % Description
+
+        ForceTimer;
+
+    end
+
+    methods (Access = private)
+
+        function StartupFcn(app, caller)
+            % Store main app in property for CloseRequestFcn to use
+            app.CallingApp = caller;
+        end
+
+        function program_code = ProgramEncoding(app)
+            app.program_motion_list = app.SquashingMotionListBox.Items;
+            app.program_motion_code = 99;
+
+            for i = 1:numel(app.program_motion_list)
+                if strcmp(app.program_motion_list{i}, 'Rubbing')
+                    app.program_motion_code = app.program_motion_code * 10 + 7;
+                elseif strcmp(app.program_motion_list{i}, 'Stamping')
+                    app.program_motion_code = app.program_motion_code * 10 + 8;
+                end
+            end
+            program_code = app.program_motion_code;
+        end
+
+        function updateLoadCellData(app)
+            % Read load cell data from Arduino
+            newData = readLoadCellData(app); % You'll need to implement this function
+
+            % Get current time
+            currentTime = datetime('now');
+
+            % Update data storage
+            app.LoadCellData(end+1) = newData;
+            app.TimeStamps(end+1) = currentTime;
+
+            % Keep only the latest MaxDataPoints
+            if length(app.LoadCellData) > app.MaxDataPoints
+                app.LoadCellData = app.LoadCellData(end-app.MaxDataPoints+1:end);
+                app.TimeStamps = app.TimeStamps(end-app.MaxDataPoints+1:end);
+            end
+
+            % Update plot
+            plot(app.LoadCellDataAxes, app.TimeStamps, app.LoadCellData);
+            drawnow; % Refresh the plot
+        end
+
+        function plot_force(app)
+            % Initialize data arrays
+            times = [];
+            values = [];
+
+            while app.isCollectingData
+                if app.arduino.BytesAvailable > 0
+                    data = fscanf(app.arduino, '%d');
+                    data = data/1000; % to convert to kg scale
+
+                    % Append new data
+                    times = [times, datetime('now')];
+                    values = [values, data];
+
+                    % Update the plot
+                    plot(app.ForceGraph, times, values, '--bo');
+                    app.ForceGraph.XLim = [times(max(1, end-30)), datetime('now')];
+                    datetick(app.ForceGraph, 'x', 'keeplimits');
+                    drawnow;
+                end
+            end
+        end
+
+        function show_measured_force(app)
+            if isempty(app.ForceTimer) || ~isvalid(app.ForceTimer)
+                % Create a timer that periodically checks for data
+                app.ForceTimer = timer('ExecutionMode', 'fixedRate', ...
+                                       'Period', 0.1, ... % Check every 0.1 seconds
+                                       'TimerFcn', @(~,~)read_force_data(app));
+                start(app.ForceTimer);
+            end
+        end
+
+        % Modify the read_force_data function
+        function read_force_data(app)
+            while app.arduino.NumBytesAvailable > 0
+                dataStr = readline(app.arduino); % Read a line of data
+                dataStr = strtrim(dataStr);      % Remove leading/trailing whitespace
+
+                % Check if the line contains 'Force:'
+                forceIndex = strfind(dataStr, 'Force:');
+                if ~isempty(forceIndex)
+                    % Extract the force value after 'Force:'
+                    forceValueStr = extractAfter(dataStr, 'Force:');
+                    forceValue = str2double(forceValueStr);
+                    if ~isnan(forceValue)
+                        % Convert to kgf
+                        forceValueKgf = forceValue / 1000;
+
+                        % Update UI component
+                        app.Force_measured_display.Value = forceValueKgf;
+
+                        % Append to data arrays
+                        app.LoadCellData(end+1) = forceValueKgf;
+                        app.TimeStamps(end+1) = datetime('now');
+
+                        % Maintain maximum data points
+                        if length(app.LoadCellData) > app.MaxDataPoints
+                            app.LoadCellData = app.LoadCellData(end-app.MaxDataPoints+1:end);
+                            app.TimeStamps = app.TimeStamps(end-app.MaxDataPoints+1:end);
+                        end
+
+                        % Update Plot
+                        plot(app.ForceGraph, app.TimeStamps, app.LoadCellData, '--bo');
+                        xlabel(app.ForceGraph, 'Time');
+                        ylabel(app.ForceGraph, 'Force (kgf)');
+                        grid(app.ForceGraph, 'on');
+                        drawnow;
+
+                    else
+                        fprintf('Invalid force value received: %s\n', forceValueStr);
+                    end
+                else
+                    % Check for operation completion
+                    if contains(dataStr, 'Operation Complete')
+                        % Stop the timer as the operation is complete
+                        stop(app.ForceTimer);
+                        delete(app.ForceTimer);
+                        app.isCollectingData = false;
+                    end
+                    fprintf('Arduino: %s\n', dataStr);
+                end
+            end
+        end
+
+    end
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: InitializingParameterButton
+        function InitializingParameterButtonPushed(app, event)
+            app.Testmode_VerticalForceInput.Value = app.Initial_Force;
+            app.Testmode_RubbingIterationInput.Value = app.Initial_Rubbing_iteration;
+            app.Testmode_RubbingDistanceInput.Value = app.Initial_Rubbing_distance;
+            app.Testmode_StampingDistanceInput.Value = app.Initial_Stamping_distance;
+            app.Testmode_RepeatCyclesInput.Value = app.Initial_Repeat_cycles;
+            app.SquashingMotionListBox.Items = app.Initial_squashing_motion;
+            app.Force_measured_display.Value = 0;
+        end
+
+        % Close request function: UIFigure
+        function UIFigureCloseRequest(app, event)
+            % Enable Configuration Button while dialog is close
+            % app.ConfigurationButton.Enable = 'on';
+            delete(app)
+        end
+
+        % Button pushed function: BasicButton
+        function BasicButtonPushed(app, event)
+            app.SquashingMotionListBox.Items = app.basic_list;
+        end
+
+        % Button pushed function: ResetButton
+        function ResetButtonPushed(app, event)
+            app.SquashingMotionListBox.Items = {};
+        end
+
+        % Button pushed function: RubbingButton
+        function RubbingButtonPushed(app, event)
+            currentItems = app.SquashingMotionListBox.Items;
+            newItem = 'Rubbing';
+            currentItems{end+1} = newItem;
+            app.SquashingMotionListBox.Items = currentItems;
+        end
+
+        % Button pushed function: StampingButton
+        function StampingButtonPushed(app, event)
+            currentItems = app.SquashingMotionListBox.Items;
+            newItem = 'Stamping';
+            currentItems{end+1} = newItem;
+            app.SquashingMotionListBox.Items = currentItems;
+        end
+
+        % Drop down opening function: SerialPortDropDown
+        function SerialPortDropDownOpening(app, event)
+            try
+                % Update the dropdown items with available ports
+                app.SerialPortDropDown.Items = serialportlist;
+
+                % Check if the Arduino is connected (optional)
+                if isempty(app.availablePorts)
+                    error('No available serial ports. Ensure your Arduino is connected.');
+                end
+
+            catch exception
+                % Handle errors and display a meaningful error message
+                fprintf('Error opening the serial port: %s\n', exception.message);
+            end
+        end
+
+        % Button pushed function: SerialAvailableRefreshButton
+        function SerialAvailableRefreshButtonPushed(app, event)
+            app.availablePorts = serialportlist("available");
+            fprintf('Serial port list updated \n');
+        end
+
+        % Button pushed function: Left
+        function LeftPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 3;
+                    app.param1 = app.Manualmode_horizontal_TD.Value;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+
+                    fprintf('Y direction step forward\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+
+                    app.isCollectingData = true;
+                    show_measured_force(app); % Starts the timer-based data collection
+
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Right
+        function RightPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 4;
+                    app.param1 = app.Manualmode_horizontal_TD.Value;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Y direction step backward\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+
+                    app.isCollectingData = true;
+                    show_measured_force(app); % Starts the timer-based data collection
+
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Up
+        function UpPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 1;
+                    app.param1 = app.Manualmode_vertical_TD.Value;
+
+                    % Send command to Arduino
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Z direction step up\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    writeline(app.arduino, combinedMessage);
+
+                    % Start the timer for reading force data
+                    if isempty(app.ForceTimer) || ~isvalid(app.ForceTimer)
+                        app.isCollectingData = true;
+                        show_measured_force(app); % Starts the timer-based data collection
+                    end
+
+                catch exception
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Down
+        function DownPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 2;
+                    app.param1 = app.Manualmode_vertical_TD.Value;
+
+                    % Send command to Arduino
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Z direction step down\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    writeline(app.arduino, combinedMessage);
+
+                    % Start the timer for reading force data
+                    if isempty(app.ForceTimer) || ~isvalid(app.ForceTimer)
+                        app.isCollectingData = true;
+                        show_measured_force(app); % Starts the timer-based data collection
+                    end
+
+                catch exception
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: SerialConnectionButton
+        function SerialConnectionButtonPushed(app, event)
+            fprintf('isConnected? => %d\n', app.isConnected);
+            if ~app.isConnected
+                try
+                    selectedPort = app.SerialPortDropDown.Value;
+                    fprintf('selectedPort: %s,', selectedPort);
+                    fprintf(' baudRate: %d\n', app.baudRate);
+
+                    app.arduino = serialport(selectedPort, app.baudRate, 'Timeout', 7);
+                    configureTerminator(app.arduino, 'CR/LF');
+                    flush(app.arduino);
+
+                    %fopen(app.arduino);
+                    app.isConnected = true;  % Update the connection status
+                    app.SerialCheckLamp.Color = [0 1 0];  % Turn the lamp green
+                    fprintf('Serial port: %s is connected \n', selectedPort);
+                catch
+                    app.SerialCheckLamp.Color = [1 0 0];  % Turn the lamp red on error
+                end
+            end
+        end
+
+        % Button pushed function: SerialDisconnectionButton
+        function SerialDisconnectionButtonPushed(app, event)
+            fprintf('isConnected? => %d\n', app.isConnected);
+            if app.isConnected
+                try
+                    delete(app.arduino);
+                    app.isConnected = false;  % Update the connection status
+                    app.SerialCheckLamp.Color = [1 0 0];  % Turn the lamp red
+                    fprintf('Disconnected\n');
+                catch
+                    fprintf('Error disconnecting serial port.\n');
+                end
+            end
+        end
+
+        % Button pushed function: Stamping_Check
+        function Stamping_CheckButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 5;
+                    app.stamp_gap = app.Manualmode_stamping_gap.Value;
+                    app.param1 = app.stamp_gap;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Stamping test\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: SQUASHINGButton
+        function SQUASHINGButtonPushed(app, event)
+            % Get user input values
+            app.Playing_Force = app.Testmode_VerticalForceInput.Value;
+            app.Playing_Rubbing_iteration = app.Testmode_RubbingIterationInput.Value;
+            app.Playing_Rubbing_distance = app.Testmode_RubbingDistanceInput.Value;
+            app.Playing_Stamping_distance = app.Testmode_StampingDistanceInput.Value;
+            app.Playing_Repeat_cycles = app.Testmode_RepeatCyclesInput.Value;
+
+            program_code = ProgramEncoding(app);
+
+            if app.isConnected && (program_code ~= 99)
+                try
+                    app.code = 0;
+                    app.case_num = 2;
+                    app.param1 = app.Playing_Force;
+                    app.param2 = app.Playing_Rubbing_iteration;
+                    app.param3 = app.Playing_Repeat_cycles;
+                    app.param4 = program_code;
+                    app.param5 = app.Playing_Stamping_distance; % stamping gap
+                    app.param6 = app.Playing_Rubbing_distance; % Travel distance
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', app.code, app.case_num, ...
+                        app.param1, app.param2, app.param3, app.param4, app.param5, app.param6);
+                    fprintf('Run!\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+
+                    app.isCollectingData = true;
+                    show_measured_force(app); % Starts the timer-based data collection
+                    %plot_force(app);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            end
+        end
+
+        % Button pushed function: STOPButton
+        function STOPButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 3;
+                    app.case_num = 1;
+
+                    % Send command to Arduino
+                    combinedMessage = sprintf('%d %d', app.code, app.case_num);
+
+                    fprintf('Stop!\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    writeline(app.arduino, combinedMessage);
+
+                    % Wait for Arduino response
+                    pause(0.1);
+
+                    if app.arduino.NumBytesAvailable > 0
+                        response = readline(app.arduino);
+                        fprintf('Arduino response: %s\n', response);
+                    end
+
+                    % Stop the force measurement timer if it's running
+                    if isfield(app, 'ForceTimer') && isa(app.ForceTimer, 'timer') && isvalid(app.ForceTimer)
+                        stop(app.ForceTimer);
+                        delete(app.ForceTimer);
+                    end
+                    app.isCollectingData = false;
+
+                catch exception
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            end
+        end
+
+        % Button pushed function: RELEASEButton
+        function RELEASEButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 3;
+                    app.case_num = 2;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Release!\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            end
+        end
+
+        % Button pushed function: Rubbing_Check
+        function Rubbing_CheckButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 6;
+                    app.travel_distance = app.Manualmode_rubbing_TD.Value;
+                    app.param1 = app.travel_distance;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Rubbing test\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: HomePositionButton
+        function HomePositionButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 0;
+                    app.case_num = 1;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Home position\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: SampleLoadingButton
+        function SampleLoadingButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 0;
+                    app.case_num = 0;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Sample loading position\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Max_up
+        function Max_upPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 0;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Z direction step max up\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Max_left
+        function Max_leftPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 7;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Y direction step max left\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Max_right
+        function Max_rightPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 8;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Y direction step max right\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Rubbing_Check_1min
+        function Rubbing_Check_1minButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 9;
+                    app.travel_distance = app.Manualmode_rubbing_TD.Value;
+                    app.param1 = app.travel_distance;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Rubbing test 60 iter(1min)\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Rubbing_Check_2min
+        function Rubbing_Check_2minButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 10;
+                    app.travel_distance = app.Manualmode_rubbing_TD.Value;
+                    app.param1 = app.travel_distance;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, app.param1, 0, 0, 0, 0, 0);
+                    fprintf('Rubbing test 120 iter(2min)\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Align_from_left
+        function Align_from_leftButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 11;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Align_from_left\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+
+        % Button pushed function: Align_from_right
+        function Align_from_rightButtonPushed(app, event)
+            if app.isConnected
+                try
+                    app.code = 1;
+                    app.case_num = 12;
+
+                    % Combined parameter & command to send message at once
+                    combinedMessage = sprintf('%d %d %d %d %d %d %d %d', ...
+                        app.code, app.case_num, 0, 0, 0, 0, 0, 0);
+                    fprintf('Align_from_right\n');
+                    fprintf('Message sent to Arduino : %s\n', combinedMessage);
+                    fprintf(app.arduino, '%s\n', combinedMessage);
+                    flush(app.arduino);
+
+                    response = fscanf(app.arduino);
+                    fprintf('Arduino response: %s\n', response);
+                catch exception
+                    % Handle errors and display a meaningful error message
+                    fprintf('Error sending data to Arduino: %s\n', exception.message);
+                end
+            else
+                fprintf('Check the serial connection \n');
+            end
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Get the file path for locating images
+            pathToMLAPP = fileparts(mfilename('fullpath'));
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Color = [0.9412 0.9412 0.9412];
+            app.UIFigure.Position = [100 100 640 480];
+            app.UIFigure.Name = 'MATLAB App';
+            app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
+
+            % Create TabGroup
+            app.TabGroup = uitabgroup(app.UIFigure);
+            app.TabGroup.Position = [16 85 508 308];
+
+            % Create MainTab
+            app.MainTab = uitab(app.TabGroup);
+            app.MainTab.Title = 'Main';
+
+            % Create MainTabContainer
+            app.MainTabContainer = uipanel(app.MainTab);
+            app.MainTabContainer.FontName = 'Times New Roman';
+            app.MainTabContainer.FontSize = 14;
+            app.MainTabContainer.Position = [10 5 487 268];
+
+            % Create HTGR_IMAGE
+            app.HTGR_IMAGE = uiimage(app.MainTabContainer);
+            app.HTGR_IMAGE.Position = [299 99 159 161];
+            app.HTGR_IMAGE.ImageSource = fullfile(pathToMLAPP, '0_Icons', 'HTGR_new_design(no BG).png');
+
+            % Create Instruction5
+            app.Instruction5 = uilabel(app.MainTabContainer);
+            app.Instruction5.FontName = 'Times New Roman';
+            app.Instruction5.FontSize = 14;
+            app.Instruction5.Position = [30 9 313 22];
+            app.Instruction5.Text = '5) Click the ''Squashing'' button to play';
+
+            % Create Instruction4
+            app.Instruction4 = uilabel(app.MainTabContainer);
+            app.Instruction4.FontName = 'Times New Roman';
+            app.Instruction4.FontSize = 14;
+            app.Instruction4.Position = [30 32 313 22];
+            app.Instruction4.Text = '4) Initialize parameters';
+
+            % Create Instruction3
+            app.Instruction3 = uilabel(app.MainTabContainer);
+            app.Instruction3.FontName = 'Times New Roman';
+            app.Instruction3.FontSize = 14;
+            app.Instruction3.Position = [30 55 313 22];
+            app.Instruction3.Text = '3) Go to ''Home'' position';
+
+            % Create Instruction2
+            app.Instruction2 = uilabel(app.MainTabContainer);
+            app.Instruction2.FontName = 'Times New Roman';
+            app.Instruction2.FontSize = 14;
+            app.Instruction2.Position = [30 79 313 22];
+            app.Instruction2.Text = '2) Loading the samples(use ''Sample Loading'' button)';
+
+            % Create Instruction1
+            app.Instruction1 = uilabel(app.MainTabContainer);
+            app.Instruction1.FontName = 'Times New Roman';
+            app.Instruction1.FontSize = 14;
+            app.Instruction1.Position = [30 103 313 22];
+            app.Instruction1.Text = '1) Connect serial port';
+
+            % Create Instruction
+            app.Instruction = uilabel(app.MainTabContainer);
+            app.Instruction.FontName = 'Times New Roman';
+            app.Instruction.FontSize = 16;
+            app.Instruction.FontWeight = 'bold';
+            app.Instruction.FontAngle = 'italic';
+            app.Instruction.Position = [11 127 280 22];
+            app.Instruction.Text = 'Squashing Proceedure';
+
+            % Create SerialPortConnectionPanel
+            app.SerialPortConnectionPanel = uipanel(app.MainTab);
+            app.SerialPortConnectionPanel.Title = '  Serial Port Connection';
+            app.SerialPortConnectionPanel.FontName = 'Times New Roman';
+            app.SerialPortConnectionPanel.FontSize = 14;
+            app.SerialPortConnectionPanel.Position = [19 160 241 105];
+
+            % Create SerialAvailableRefreshButton
+            app.SerialAvailableRefreshButton = uibutton(app.SerialPortConnectionPanel, 'push');
+            app.SerialAvailableRefreshButton.ButtonPushedFcn = createCallbackFcn(app, @SerialAvailableRefreshButtonPushed, true);
+            app.SerialAvailableRefreshButton.FontName = 'Times New Roman';
+            app.SerialAvailableRefreshButton.FontSize = 14;
+            app.SerialAvailableRefreshButton.FontWeight = 'bold';
+            app.SerialAvailableRefreshButton.Position = [154 46 80 28];
+            app.SerialAvailableRefreshButton.Text = 'Refresh';
+
+            % Create SerialCheckLamp
+            app.SerialCheckLamp = uilamp(app.SerialPortConnectionPanel);
+            app.SerialCheckLamp.Position = [8 48 23 23];
+            app.SerialCheckLamp.Color = [1 1 0];
+
+            % Create SerialConnectionButton
+            app.SerialConnectionButton = uibutton(app.SerialPortConnectionPanel, 'push');
+            app.SerialConnectionButton.ButtonPushedFcn = createCallbackFcn(app, @SerialConnectionButtonPushed, true);
+            app.SerialConnectionButton.FontName = 'Times New Roman';
+            app.SerialConnectionButton.FontSize = 14;
+            app.SerialConnectionButton.FontWeight = 'bold';
+            app.SerialConnectionButton.Position = [68 10 80 28];
+            app.SerialConnectionButton.Text = 'Connect';
+
+            % Create SerialDisconnectionButton
+            app.SerialDisconnectionButton = uibutton(app.SerialPortConnectionPanel, 'push');
+            app.SerialDisconnectionButton.ButtonPushedFcn = createCallbackFcn(app, @SerialDisconnectionButtonPushed, true);
+            app.SerialDisconnectionButton.FontName = 'Times New Roman';
+            app.SerialDisconnectionButton.FontSize = 14;
+            app.SerialDisconnectionButton.FontWeight = 'bold';
+            app.SerialDisconnectionButton.Position = [154 10 80 28];
+            app.SerialDisconnectionButton.Text = 'Disconnect';
+
+            % Create PortDropDownLabel
+            app.PortDropDownLabel = uilabel(app.SerialPortConnectionPanel);
+            app.PortDropDownLabel.FontName = 'Times New Roman';
+            app.PortDropDownLabel.FontSize = 14;
+            app.PortDropDownLabel.Position = [36 49 28 22];
+            app.PortDropDownLabel.Text = 'Port';
+
+            % Create SerialPortDropDown
+            app.SerialPortDropDown = uidropdown(app.SerialPortConnectionPanel);
+            app.SerialPortDropDown.Items = {};
+            app.SerialPortDropDown.DropDownOpeningFcn = createCallbackFcn(app, @SerialPortDropDownOpening, true);
+            app.SerialPortDropDown.FontName = 'Times New Roman';
+            app.SerialPortDropDown.Position = [68 46 80 28];
+            app.SerialPortDropDown.Value = {};
+
+            % Create TestModeTab
+            app.TestModeTab = uitab(app.TabGroup);
+            app.TestModeTab.Title = 'Test mode';
+
+            % Create TestModeTabContainer
+            app.TestModeTabContainer = uipanel(app.TestModeTab);
+            app.TestModeTabContainer.FontWeight = 'bold';
+            app.TestModeTabContainer.FontSize = 14;
+            app.TestModeTabContainer.Position = [10 5 487 268];
+
+            % Create cyclesLabel
+            app.cyclesLabel = uilabel(app.TestModeTabContainer);
+            app.cyclesLabel.HorizontalAlignment = 'center';
+            app.cyclesLabel.FontName = 'Times New Roman';
+            app.cyclesLabel.FontSize = 13;
+            app.cyclesLabel.Position = [183 110 38 22];
+            app.cyclesLabel.Text = 'cycles';
+
+            % Create Testmode_RepeatCyclesInput
+            app.Testmode_RepeatCyclesInput = uieditfield(app.TestModeTabContainer, 'numeric');
+            app.Testmode_RepeatCyclesInput.Limits = [1 20];
+            app.Testmode_RepeatCyclesInput.FontName = 'Times New Roman';
+            app.Testmode_RepeatCyclesInput.FontSize = 13;
+            app.Testmode_RepeatCyclesInput.Position = [128 110 49 22];
+            app.Testmode_RepeatCyclesInput.Value = 1;
+
+            % Create RepeatcyclesLabel
+            app.RepeatcyclesLabel = uilabel(app.TestModeTabContainer);
+            app.RepeatcyclesLabel.HorizontalAlignment = 'center';
+            app.RepeatcyclesLabel.FontName = 'Times New Roman';
+            app.RepeatcyclesLabel.FontSize = 13;
+            app.RepeatcyclesLabel.Position = [17 110 77 22];
+            app.RepeatcyclesLabel.Text = 'Repeat cycles';
+
+            % Create mmLabel_2
+            app.mmLabel_2 = uilabel(app.TestModeTabContainer);
+            app.mmLabel_2.HorizontalAlignment = 'center';
+            app.mmLabel_2.FontName = 'Times New Roman';
+            app.mmLabel_2.FontSize = 13;
+            app.mmLabel_2.Position = [183 134 25 22];
+            app.mmLabel_2.Text = 'mm';
+
+            % Create Testmode_StampingDistanceInput
+            app.Testmode_StampingDistanceInput = uieditfield(app.TestModeTabContainer, 'numeric');
+            app.Testmode_StampingDistanceInput.Limits = [1 10];
+            app.Testmode_StampingDistanceInput.FontName = 'Times New Roman';
+            app.Testmode_StampingDistanceInput.FontSize = 13;
+            app.Testmode_StampingDistanceInput.Position = [128 134 49 22];
+            app.Testmode_StampingDistanceInput.Value = 1;
+
+            % Create StampingdistanceLabel
+            app.StampingdistanceLabel = uilabel(app.TestModeTabContainer);
+            app.StampingdistanceLabel.HorizontalAlignment = 'center';
+            app.StampingdistanceLabel.FontName = 'Times New Roman';
+            app.StampingdistanceLabel.FontSize = 13;
+            app.StampingdistanceLabel.Position = [17 134 101 22];
+            app.StampingdistanceLabel.Text = 'Stamping distance';
+
+            % Create mmLabel
+            app.mmLabel = uilabel(app.TestModeTabContainer);
+            app.mmLabel.HorizontalAlignment = 'center';
+            app.mmLabel.FontName = 'Times New Roman';
+            app.mmLabel.FontSize = 13;
+            app.mmLabel.Position = [183 158 25 22];
+            app.mmLabel.Text = 'mm';
+
+            % Create Testmode_RubbingDistanceInput
+            app.Testmode_RubbingDistanceInput = uieditfield(app.TestModeTabContainer, 'numeric');
+            app.Testmode_RubbingDistanceInput.Limits = [1 5];
+            app.Testmode_RubbingDistanceInput.FontName = 'Times New Roman';
+            app.Testmode_RubbingDistanceInput.FontSize = 13;
+            app.Testmode_RubbingDistanceInput.Position = [128 158 49 22];
+            app.Testmode_RubbingDistanceInput.Value = 1;
+
+            % Create RubbingdistanceLabel
+            app.RubbingdistanceLabel = uilabel(app.TestModeTabContainer);
+            app.RubbingdistanceLabel.HorizontalAlignment = 'center';
+            app.RubbingdistanceLabel.FontName = 'Times New Roman';
+            app.RubbingdistanceLabel.FontSize = 13;
+            app.RubbingdistanceLabel.Position = [17 158 95 22];
+            app.RubbingdistanceLabel.Text = 'Rubbing distance';
+
+            % Create IterLabel
+            app.IterLabel = uilabel(app.TestModeTabContainer);
+            app.IterLabel.HorizontalAlignment = 'center';
+            app.IterLabel.FontName = 'Times New Roman';
+            app.IterLabel.FontSize = 13;
+            app.IterLabel.Position = [183 182 26 22];
+            app.IterLabel.Text = 'Iter.';
+
+            % Create Testmode_RubbingIterationInput
+            app.Testmode_RubbingIterationInput = uieditfield(app.TestModeTabContainer, 'numeric');
+            app.Testmode_RubbingIterationInput.Limits = [1 600];
+            app.Testmode_RubbingIterationInput.FontName = 'Times New Roman';
+            app.Testmode_RubbingIterationInput.FontSize = 13;
+            app.Testmode_RubbingIterationInput.Position = [128 182 49 22];
+            app.Testmode_RubbingIterationInput.Value = 10;
+
+            % Create RubbingiterationLabel
+            app.RubbingiterationLabel = uilabel(app.TestModeTabContainer);
+            app.RubbingiterationLabel.HorizontalAlignment = 'center';
+            app.RubbingiterationLabel.FontName = 'Times New Roman';
+            app.RubbingiterationLabel.FontSize = 13;
+            app.RubbingiterationLabel.Position = [17 182 96 22];
+            app.RubbingiterationLabel.Text = 'Rubbing iteration';
+
+            % Create kgfLabel
+            app.kgfLabel = uilabel(app.TestModeTabContainer);
+            app.kgfLabel.HorizontalAlignment = 'center';
+            app.kgfLabel.FontName = 'Times New Roman';
+            app.kgfLabel.FontSize = 13;
+            app.kgfLabel.Position = [183 207 25 22];
+            app.kgfLabel.Text = 'kgf';
+
+            % Create Testmode_VerticalForceInput
+            app.Testmode_VerticalForceInput = uieditfield(app.TestModeTabContainer, 'numeric');
+            app.Testmode_VerticalForceInput.Limits = [1 35];
+            app.Testmode_VerticalForceInput.FontName = 'Times New Roman';
+            app.Testmode_VerticalForceInput.FontSize = 13;
+            app.Testmode_VerticalForceInput.Position = [128 207 49 22];
+            app.Testmode_VerticalForceInput.Value = 12;
+
+            % Create ForceLabel
+            app.ForceLabel = uilabel(app.TestModeTabContainer);
+            app.ForceLabel.HorizontalAlignment = 'center';
+            app.ForceLabel.FontName = 'Times New Roman';
+            app.ForceLabel.FontSize = 13;
+            app.ForceLabel.Position = [17 207 35 22];
+            app.ForceLabel.Text = 'Force';
+
+            % Create GraphPanel
+            app.GraphPanel = uipanel(app.TestModeTabContainer);
+            app.GraphPanel.BorderType = 'none';
+            app.GraphPanel.FontName = 'Times New Roman';
+            app.GraphPanel.Position = [9 4 471 95];
+
+            % Create ForceGraph
+            app.ForceGraph = uiaxes(app.GraphPanel);
+            xlabel(app.ForceGraph, 'Time(s)')
+            ylabel(app.ForceGraph, 'Force(kgf)')
+            zlabel(app.ForceGraph, 'Z')
+            app.ForceGraph.GridLineStyle = '--';
+            app.ForceGraph.XGrid = 'on';
+            app.ForceGraph.XMinorGrid = 'on';
+            app.ForceGraph.YGrid = 'on';
+            app.ForceGraph.YMinorGrid = 'on';
+            app.ForceGraph.Position = [0 4 471 90];
+
+            % Create SquashingMotionContainer
+            app.SquashingMotionContainer = uipanel(app.TestModeTabContainer);
+            app.SquashingMotionContainer.FontName = 'Times New Roman';
+            app.SquashingMotionContainer.FontSize = 14;
+            app.SquashingMotionContainer.Position = [250 106 218 128];
+
+            % Create SquashingMotionListBox
+            app.SquashingMotionListBox = uilistbox(app.SquashingMotionContainer);
+            app.SquashingMotionListBox.Items = {};
+            app.SquashingMotionListBox.Position = [96 7 112 114];
+            app.SquashingMotionListBox.Value = {};
+
+            % Create ResetButton
+            app.ResetButton = uibutton(app.SquashingMotionContainer, 'push');
+            app.ResetButton.ButtonPushedFcn = createCallbackFcn(app, @ResetButtonPushed, true);
+            app.ResetButton.FontName = 'Times New Roman';
+            app.ResetButton.FontSize = 13;
+            app.ResetButton.FontWeight = 'bold';
+            app.ResetButton.Position = [9 6 78 26];
+            app.ResetButton.Text = 'Reset';
+
+            % Create StampingButton
+            app.StampingButton = uibutton(app.SquashingMotionContainer, 'push');
+            app.StampingButton.ButtonPushedFcn = createCallbackFcn(app, @StampingButtonPushed, true);
+            app.StampingButton.FontName = 'Times New Roman';
+            app.StampingButton.FontSize = 13;
+            app.StampingButton.FontWeight = 'bold';
+            app.StampingButton.Position = [9 36 78 26];
+            app.StampingButton.Text = 'Stamping';
+
+            % Create RubbingButton
+            app.RubbingButton = uibutton(app.SquashingMotionContainer, 'push');
+            app.RubbingButton.ButtonPushedFcn = createCallbackFcn(app, @RubbingButtonPushed, true);
+            app.RubbingButton.FontName = 'Times New Roman';
+            app.RubbingButton.FontSize = 13;
+            app.RubbingButton.FontWeight = 'bold';
+            app.RubbingButton.Position = [9 65 78 26];
+            app.RubbingButton.Text = 'Rubbing';
+
+            % Create BasicButton
+            app.BasicButton = uibutton(app.SquashingMotionContainer, 'push');
+            app.BasicButton.ButtonPushedFcn = createCallbackFcn(app, @BasicButtonPushed, true);
+            app.BasicButton.FontName = 'Times New Roman';
+            app.BasicButton.FontSize = 13;
+            app.BasicButton.FontWeight = 'bold';
+            app.BasicButton.Position = [9 95 78 26];
+            app.BasicButton.Text = 'Basic';
+
+            % Create ParameterSettingLabel
+            app.ParameterSettingLabel = uilabel(app.TestModeTabContainer);
+            app.ParameterSettingLabel.HorizontalAlignment = 'center';
+            app.ParameterSettingLabel.FontName = 'Times New Roman';
+            app.ParameterSettingLabel.FontSize = 14;
+            app.ParameterSettingLabel.FontWeight = 'bold';
+            app.ParameterSettingLabel.Position = [11 239 114 22];
+            app.ParameterSettingLabel.Text = 'Parameter Setting';
+
+            % Create SquashingMotionSettingLabel
+            app.SquashingMotionSettingLabel = uilabel(app.TestModeTabContainer);
+            app.SquashingMotionSettingLabel.HorizontalAlignment = 'center';
+            app.SquashingMotionSettingLabel.FontName = 'Times New Roman';
+            app.SquashingMotionSettingLabel.FontSize = 14;
+            app.SquashingMotionSettingLabel.FontWeight = 'bold';
+            app.SquashingMotionSettingLabel.Position = [240 239 160 22];
+            app.SquashingMotionSettingLabel.Text = 'Squashing Motion Setting';
+
+            % Create ManualmodeTab
+            app.ManualmodeTab = uitab(app.TabGroup);
+            app.ManualmodeTab.Title = 'Manual mode';
+
+            % Create ManualOperationPanel
+            app.ManualOperationPanel = uipanel(app.ManualmodeTab);
+            app.ManualOperationPanel.Title = '  Manual Operation';
+            app.ManualOperationPanel.FontName = 'Times New Roman';
+            app.ManualOperationPanel.FontWeight = 'bold';
+            app.ManualOperationPanel.FontSize = 14;
+            app.ManualOperationPanel.Position = [10 5 487 268];
+
+            % Create Rubbing_Check_2min
+            app.Rubbing_Check_2min = uibutton(app.ManualOperationPanel, 'push');
+            app.Rubbing_Check_2min.ButtonPushedFcn = createCallbackFcn(app, @Rubbing_Check_2minButtonPushed, true);
+            app.Rubbing_Check_2min.FontName = 'Times New Roman';
+            app.Rubbing_Check_2min.FontSize = 14;
+            app.Rubbing_Check_2min.FontWeight = 'bold';
+            app.Rubbing_Check_2min.Position = [401 20 62 30];
+            app.Rubbing_Check_2min.Text = '2 min';
+
+            % Create Rubbing_Check_1min
+            app.Rubbing_Check_1min = uibutton(app.ManualOperationPanel, 'push');
+            app.Rubbing_Check_1min.ButtonPushedFcn = createCallbackFcn(app, @Rubbing_Check_1minButtonPushed, true);
+            app.Rubbing_Check_1min.FontName = 'Times New Roman';
+            app.Rubbing_Check_1min.FontSize = 14;
+            app.Rubbing_Check_1min.FontWeight = 'bold';
+            app.Rubbing_Check_1min.Position = [330 20 62 30];
+            app.Rubbing_Check_1min.Text = '1 min';
+
+            % Create Rubbing_Check
+            app.Rubbing_Check = uibutton(app.ManualOperationPanel, 'push');
+            app.Rubbing_Check.ButtonPushedFcn = createCallbackFcn(app, @Rubbing_CheckButtonPushed, true);
+            app.Rubbing_Check.FontName = 'Times New Roman';
+            app.Rubbing_Check.FontSize = 14;
+            app.Rubbing_Check.FontWeight = 'bold';
+            app.Rubbing_Check.Position = [259 20 62 30];
+            app.Rubbing_Check.Text = '10 Iter.';
+
+            % Create Manualmode_rubbing_TD
+            app.Manualmode_rubbing_TD = uieditfield(app.ManualOperationPanel, 'numeric');
+            app.Manualmode_rubbing_TD.Limits = [1 10];
+            app.Manualmode_rubbing_TD.FontName = 'Times New Roman';
+            app.Manualmode_rubbing_TD.FontSize = 14;
+            app.Manualmode_rubbing_TD.Position = [197 24 57 22];
+            app.Manualmode_rubbing_TD.Value = 1;
+
+            % Create TravelDistancemmLabel
+            app.TravelDistancemmLabel = uilabel(app.ManualOperationPanel);
+            app.TravelDistancemmLabel.FontName = 'Times New Roman';
+            app.TravelDistancemmLabel.FontSize = 14;
+            app.TravelDistancemmLabel.Position = [74 24 125 22];
+            app.TravelDistancemmLabel.Text = 'Travel Distance(mm)';
+
+            % Create RubbingLabel
+            app.RubbingLabel = uilabel(app.ManualOperationPanel);
+            app.RubbingLabel.FontName = 'Times New Roman';
+            app.RubbingLabel.FontSize = 14;
+            app.RubbingLabel.FontWeight = 'bold';
+            app.RubbingLabel.Position = [12 24 57 22];
+            app.RubbingLabel.Text = 'Rubbing';
+
+            % Create Stamping_Check
+            app.Stamping_Check = uibutton(app.ManualOperationPanel, 'push');
+            app.Stamping_Check.ButtonPushedFcn = createCallbackFcn(app, @Stamping_CheckButtonPushed, true);
+            app.Stamping_Check.FontName = 'Times New Roman';
+            app.Stamping_Check.FontSize = 14;
+            app.Stamping_Check.FontWeight = 'bold';
+            app.Stamping_Check.Position = [259 61 62 30];
+            app.Stamping_Check.Text = 'Check';
+
+            % Create Manualmode_stamping_gap
+            app.Manualmode_stamping_gap = uieditfield(app.ManualOperationPanel, 'numeric');
+            app.Manualmode_stamping_gap.Limits = [1 15];
+            app.Manualmode_stamping_gap.FontName = 'Times New Roman';
+            app.Manualmode_stamping_gap.FontSize = 14;
+            app.Manualmode_stamping_gap.Position = [197 65 57 22];
+            app.Manualmode_stamping_gap.Value = 1;
+
+            % Create GapmmLabel
+            app.GapmmLabel = uilabel(app.ManualOperationPanel);
+            app.GapmmLabel.FontName = 'Times New Roman';
+            app.GapmmLabel.FontSize = 14;
+            app.GapmmLabel.Position = [140 65 59 22];
+            app.GapmmLabel.Text = 'Gap(mm)';
+
+            % Create StampingLabel
+            app.StampingLabel = uilabel(app.ManualOperationPanel);
+            app.StampingLabel.FontName = 'Times New Roman';
+            app.StampingLabel.FontSize = 14;
+            app.StampingLabel.FontWeight = 'bold';
+            app.StampingLabel.Position = [12 65 63 22];
+            app.StampingLabel.Text = 'Stamping';
+
+            % Create Align_from_right
+            app.Align_from_right = uibutton(app.ManualOperationPanel, 'push');
+            app.Align_from_right.ButtonPushedFcn = createCallbackFcn(app, @Align_from_rightButtonPushed, true);
+            app.Align_from_right.BackgroundColor = [0.902 0.902 0.902];
+            app.Align_from_right.FontName = 'Times New Roman';
+            app.Align_from_right.FontSize = 14;
+            app.Align_from_right.FontWeight = 'bold';
+            app.Align_from_right.Position = [323 99 140 30];
+            app.Align_from_right.Text = 'Align from Right';
+
+            % Create Align_from_left
+            app.Align_from_left = uibutton(app.ManualOperationPanel, 'push');
+            app.Align_from_left.ButtonPushedFcn = createCallbackFcn(app, @Align_from_leftButtonPushed, true);
+            app.Align_from_left.BackgroundColor = [0.902 0.902 0.902];
+            app.Align_from_left.FontName = 'Times New Roman';
+            app.Align_from_left.FontSize = 14;
+            app.Align_from_left.FontWeight = 'bold';
+            app.Align_from_left.Position = [176 99 140 30];
+            app.Align_from_left.Text = 'Align from Left';
+
+            % Create Max_right
+            app.Max_right = uibutton(app.ManualOperationPanel, 'push');
+            app.Max_right.ButtonPushedFcn = createCallbackFcn(app, @Max_rightPushed, true);
+            app.Max_right.BackgroundColor = [0.902 0.902 0.902];
+            app.Max_right.FontName = 'Times New Roman';
+            app.Max_right.FontSize = 14;
+            app.Max_right.FontWeight = 'bold';
+            app.Max_right.Position = [396 134 67 30];
+            app.Max_right.Text = 'Max_R';
+
+            % Create Right
+            app.Right = uibutton(app.ManualOperationPanel, 'push');
+            app.Right.ButtonPushedFcn = createCallbackFcn(app, @RightPushed, true);
+            app.Right.FontName = 'Times New Roman';
+            app.Right.FontSize = 14;
+            app.Right.FontWeight = 'bold';
+            app.Right.Position = [323 134 67 30];
+            app.Right.Text = 'Right';
+
+            % Create Left
+            app.Left = uibutton(app.ManualOperationPanel, 'push');
+            app.Left.ButtonPushedFcn = createCallbackFcn(app, @LeftPushed, true);
+            app.Left.FontName = 'Times New Roman';
+            app.Left.FontSize = 14;
+            app.Left.FontWeight = 'bold';
+            app.Left.Position = [250 134 67 30];
+            app.Left.Text = 'Left';
+
+            % Create Max_left
+            app.Max_left = uibutton(app.ManualOperationPanel, 'push');
+            app.Max_left.ButtonPushedFcn = createCallbackFcn(app, @Max_leftPushed, true);
+            app.Max_left.BackgroundColor = [0.902 0.902 0.902];
+            app.Max_left.FontName = 'Times New Roman';
+            app.Max_left.FontSize = 14;
+            app.Max_left.FontWeight = 'bold';
+            app.Max_left.Position = [176 134 67 30];
+            app.Max_left.Text = 'Max_L';
+
+            % Create Manualmode_horizontal_TD
+            app.Manualmode_horizontal_TD = uieditfield(app.ManualOperationPanel, 'numeric');
+            app.Manualmode_horizontal_TD.Limits = [1 200];
+            app.Manualmode_horizontal_TD.ValueDisplayFormat = '%.0f';
+            app.Manualmode_horizontal_TD.FontName = 'Times New Roman';
+            app.Manualmode_horizontal_TD.FontSize = 14;
+            app.Manualmode_horizontal_TD.Position = [112 138 57 22];
+            app.Manualmode_horizontal_TD.Value = 5;
+
+            % Create HorizontalEditField_2Label
+            app.HorizontalEditField_2Label = uilabel(app.ManualOperationPanel);
+            app.HorizontalEditField_2Label.FontName = 'Times New Roman';
+            app.HorizontalEditField_2Label.FontSize = 14;
+            app.HorizontalEditField_2Label.Position = [30 138 75 22];
+            app.HorizontalEditField_2Label.Text = 'Horizontal';
+
+            % Create Down
+            app.Down = uibutton(app.ManualOperationPanel, 'push');
+            app.Down.ButtonPushedFcn = createCallbackFcn(app, @DownPushed, true);
+            app.Down.FontName = 'Times New Roman';
+            app.Down.FontSize = 14;
+            app.Down.FontWeight = 'bold';
+            app.Down.Position = [388 168 75 30];
+            app.Down.Text = 'Down';
+
+            % Create Up
+            app.Up = uibutton(app.ManualOperationPanel, 'push');
+            app.Up.ButtonPushedFcn = createCallbackFcn(app, @UpPushed, true);
+            app.Up.FontName = 'Times New Roman';
+            app.Up.FontSize = 14;
+            app.Up.FontWeight = 'bold';
+            app.Up.Position = [282 168 75 30];
+            app.Up.Text = 'Up';
+
+            % Create Max_up
+            app.Max_up = uibutton(app.ManualOperationPanel, 'push');
+            app.Max_up.ButtonPushedFcn = createCallbackFcn(app, @Max_upPushed, true);
+            app.Max_up.BackgroundColor = [0.902 0.902 0.902];
+            app.Max_up.FontName = 'Times New Roman';
+            app.Max_up.FontSize = 14;
+            app.Max_up.FontWeight = 'bold';
+            app.Max_up.Position = [176 168 75 30];
+            app.Max_up.Text = 'Max_Up';
+
+            % Create Manualmode_vertical_TD
+            app.Manualmode_vertical_TD = uieditfield(app.ManualOperationPanel, 'numeric');
+            app.Manualmode_vertical_TD.Limits = [1 50];
+            app.Manualmode_vertical_TD.ValueDisplayFormat = '%.0f';
+            app.Manualmode_vertical_TD.FontName = 'Times New Roman';
+            app.Manualmode_vertical_TD.FontSize = 14;
+            app.Manualmode_vertical_TD.Position = [112 172 57 22];
+            app.Manualmode_vertical_TD.Value = 5;
+
+            % Create VerticalEditField_2Label
+            app.VerticalEditField_2Label = uilabel(app.ManualOperationPanel);
+            app.VerticalEditField_2Label.FontName = 'Times New Roman';
+            app.VerticalEditField_2Label.FontSize = 14;
+            app.VerticalEditField_2Label.Position = [30 172 75 22];
+            app.VerticalEditField_2Label.Text = 'Vertical';
+
+            % Create UnitMovementCheckLabel
+            app.UnitMovementCheckLabel = uilabel(app.ManualOperationPanel);
+            app.UnitMovementCheckLabel.FontName = 'Times New Roman';
+            app.UnitMovementCheckLabel.FontSize = 14;
+            app.UnitMovementCheckLabel.FontWeight = 'bold';
+            app.UnitMovementCheckLabel.Position = [12 207 170 24];
+            app.UnitMovementCheckLabel.Text = 'Unit Movement Check';
+
+            % Create Force_measured_display
+            app.Force_measured_display = uieditfield(app.ManualOperationPanel, 'numeric');
+            app.Force_measured_display.ValueDisplayFormat = '%.1f';
+            app.Force_measured_display.FontName = 'Times New Roman';
+            app.Force_measured_display.FontSize = 14;
+            app.Force_measured_display.Position = [377 205 85 22];
+
+            % Create Force_measured
+            app.Force_measured = uilabel(app.ManualOperationPanel);
+            app.Force_measured.FontName = 'Times New Roman';
+            app.Force_measured.FontSize = 14;
+            app.Force_measured.Position = [291 205 75 22];
+            app.Force_measured.Text = 'Force (kgf)';
+
+            % Create HighThroughputGenomeReleaserLabel
+            app.HighThroughputGenomeReleaserLabel = uilabel(app.UIFigure);
+            app.HighThroughputGenomeReleaserLabel.HorizontalAlignment = 'center';
+            app.HighThroughputGenomeReleaserLabel.FontName = 'Times New Roman';
+            app.HighThroughputGenomeReleaserLabel.FontSize = 26;
+            app.HighThroughputGenomeReleaserLabel.FontWeight = 'bold';
+            app.HighThroughputGenomeReleaserLabel.Position = [79 416 409 35];
+            app.HighThroughputGenomeReleaserLabel.Text = 'High Throughput Genome Releaser';
+
+            % Create PNNL_LOGO
+            app.PNNL_LOGO = uiimage(app.UIFigure);
+            app.PNNL_LOGO.Position = [505 410 118 59];
+            app.PNNL_LOGO.ImageSource = fullfile(pathToMLAPP, '0_Icons', 'PNNL Horizontal Logo (.png).png');
+
+            % Create MainButtonPannel
+            app.MainButtonPannel = uipanel(app.UIFigure);
+            app.MainButtonPannel.BorderType = 'none';
+            app.MainButtonPannel.FontName = 'Times New Roman';
+            app.MainButtonPannel.Position = [25 20 488 58];
+
+            % Create RELEASEButton
+            app.RELEASEButton = uibutton(app.MainButtonPannel, 'push');
+            app.RELEASEButton.ButtonPushedFcn = createCallbackFcn(app, @RELEASEButtonPushed, true);
+            app.RELEASEButton.FontName = 'Times New Roman';
+            app.RELEASEButton.FontSize = 20;
+            app.RELEASEButton.FontWeight = 'bold';
+            app.RELEASEButton.FontColor = [1 0 0];
+            app.RELEASEButton.Position = [332 7 154 47];
+            app.RELEASEButton.Text = 'RELEASE';
+
+            % Create STOPButton
+            app.STOPButton = uibutton(app.MainButtonPannel, 'push');
+            app.STOPButton.ButtonPushedFcn = createCallbackFcn(app, @STOPButtonPushed, true);
+            app.STOPButton.FontName = 'Times New Roman';
+            app.STOPButton.FontSize = 20;
+            app.STOPButton.FontWeight = 'bold';
+            app.STOPButton.FontColor = [1 0 0];
+            app.STOPButton.Position = [168 7 154 47];
+            app.STOPButton.Text = 'STOP';
+
+            % Create SQUASHINGButton
+            app.SQUASHINGButton = uibutton(app.MainButtonPannel, 'push');
+            app.SQUASHINGButton.ButtonPushedFcn = createCallbackFcn(app, @SQUASHINGButtonPushed, true);
+            app.SQUASHINGButton.FontName = 'Times New Roman';
+            app.SQUASHINGButton.FontSize = 20;
+            app.SQUASHINGButton.FontWeight = 'bold';
+            app.SQUASHINGButton.FontColor = [0 0 1];
+            app.SQUASHINGButton.Position = [3 7 154 47];
+            app.SQUASHINGButton.Text = 'SQUASHING';
+
+            % Create MainButtonPannel_2
+            app.MainButtonPannel_2 = uipanel(app.UIFigure);
+            app.MainButtonPannel_2.BorderType = 'none';
+            app.MainButtonPannel_2.FontName = 'Times New Roman';
+            app.MainButtonPannel_2.Position = [529 126 104 215];
+
+            % Create HomePositionButton
+            app.HomePositionButton = uibutton(app.MainButtonPannel_2, 'push');
+            app.HomePositionButton.ButtonPushedFcn = createCallbackFcn(app, @HomePositionButtonPushed, true);
+            app.HomePositionButton.WordWrap = 'on';
+            app.HomePositionButton.FontName = 'Times New Roman';
+            app.HomePositionButton.FontSize = 18;
+            app.HomePositionButton.FontWeight = 'bold';
+            app.HomePositionButton.FontColor = [0.4941 0.1843 0.5569];
+            app.HomePositionButton.Position = [5 6 98 60];
+            app.HomePositionButton.Text = 'Home Position';
+
+            % Create SampleLoadingButton
+            app.SampleLoadingButton = uibutton(app.MainButtonPannel_2, 'push');
+            app.SampleLoadingButton.ButtonPushedFcn = createCallbackFcn(app, @SampleLoadingButtonPushed, true);
+            app.SampleLoadingButton.WordWrap = 'on';
+            app.SampleLoadingButton.FontName = 'Times New Roman';
+            app.SampleLoadingButton.FontSize = 18;
+            app.SampleLoadingButton.FontWeight = 'bold';
+            app.SampleLoadingButton.FontColor = [0.4941 0.1843 0.5569];
+            app.SampleLoadingButton.Position = [5 77 98 60];
+            app.SampleLoadingButton.Text = 'Sample Loading';
+
+            % Create InitializingParameterButton
+            app.InitializingParameterButton = uibutton(app.MainButtonPannel_2, 'push');
+            app.InitializingParameterButton.ButtonPushedFcn = createCallbackFcn(app, @InitializingParameterButtonPushed, true);
+            app.InitializingParameterButton.WordWrap = 'on';
+            app.InitializingParameterButton.FontName = 'Times New Roman';
+            app.InitializingParameterButton.FontSize = 16;
+            app.InitializingParameterButton.FontWeight = 'bold';
+            app.InitializingParameterButton.FontAngle = 'italic';
+            app.InitializingParameterButton.FontColor = [0.4941 0.1843 0.5569];
+            app.InitializingParameterButton.Position = [5 149 98 60];
+            app.InitializingParameterButton.Text = 'Initializing Parameter';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = HTGR_top_moving_v4_4
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
